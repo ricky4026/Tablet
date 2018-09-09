@@ -1,0 +1,541 @@
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 1   
+
+
+C51 COMPILER V9.51, COMPILATION OF MODULE TABKET
+OBJECT MODULE PLACED IN Tabket.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\c51.exe Tabket.c DB OE BR INCDIR(C:\SiLabs\MCU\Inc)
+
+line level    source
+
+   1          /////////////////////////////////////
+   2          //  Generated Initialization File  //
+   3          /////////////////////////////////////
+   4          
+   5          #include "compiler_defs.h"
+   6          #include "C8051F340_defs.h"
+   7          #include <communication.h>
+   8          #define DisplayNum  6;
+   9          
+  10          #define SYSCLK      12000000           // SYSCLK frequency in Hz
+  11          #define BAUDRATE      9600           // Baud rate of UART in bps
+  12          
+  13          void Counter();
+  14          void Send_data(char txdata,char num );
+  15          void Delay(float time);
+  16          void InitTimer();
+  17          void DisPlay();
+  18          void Wait_timer0();
+  19          void putchar(unsigned char cData);
+  20          void Timer2_Init();
+  21          void SYSCLK_Init (void);
+  22          unsigned long Square(char n);
+  23          char TX_Buffer[] = {0xaa,0x70,0x01,0xcc,0x33,0xc3,0x3c};
+  24          char NumberBuf[] ={0xC0,0xF9,0xA4,0xB0,0x99,0x92,0x83,0xD8,0x80,0x90,0xFF};
+  25          unsigned char Tags[26];
+  26          char NumTemp=0;
+  27          char Total=20;
+  28          xdata TPacker Packer ;
+  29          sbit SD=P1^2;
+  30          sbit TD=P1^3;
+  31          sbit HD=P1^4;
+  32          sbit tx_pin =P1^1;
+  33          sbit TX_Flag =P1^0; 
+  34          sbit SSR_Motor = P1^5;
+  35          
+  36          sbit CP = P0^3;
+  37          sbit D0 = P0^5;
+  38          sbit D1 = P0^4;
+  39          sbit Senser = P0^6;
+  40          sbit Emit = P0^7;
+  41           
+  42          unsigned int ErrorSenser= 0;
+  43          bit F_STOP  =0;
+  44          bit F_ERROR  =0;
+  45          xdata TPacker Packer ;
+  46          unsigned char RxTimeOutCount=0; // UART 接收超時時間設定
+  47          unsigned char *Pointer_Packer = &Packer.UART_Mark;
+  48          unsigned char ErrorCount =0;
+  49          bit IsBarcode = 0;
+  50          bit     IsRxTimeOut =0; 
+  51          unsigned char CasseteHigh = 0x00;
+  52          unsigned char CasseteLow  = 0x10;
+  53          unsigned char Command;
+  54          unsigned char CountNumber;
+  55          unsigned char BCC = 0x00,index =2;
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 2   
+
+  56          char DisA,DisB,DisC;
+  57          unsigned long CasseteNumTemp=0;
+  58          unsigned int CPCount = 0x0100;
+  59          unsigned char CIndex = 0;
+  60          unsigned char STX = 2;
+  61          unsigned char ETX = 3;
+  62          bit Shining = 0;
+  63          int ss = 0;
+  64          void Timer_Init()
+  65          {
+  66   1          TCON      = 0x50;
+  67   1          TMOD      = 0x22;
+  68   1          TL0       = 0x00;
+  69   1          TH0       = 0x00;
+  70   1              TH1       = 0x0C;
+  71   1              TL1       = 0x0C;
+  72   1              TR0 = 0;
+  73   1              TR1 = 0;
+  74   1      }
+  75          void UART1_Init (void){
+  76   1      
+  77   1              SBRLL1    = 0x8F;
+  78   1          SBRLH1    = 0xFD;
+  79   1          SCON1     = 0x10;           
+  80   1          SMOD1     = 0x0E;//關閉多機通訊
+  81   1          SBCON1    = 0x43;  
+  82   1              EIE2 = 0x02;//開啟UART1中斷
+  83   1      //      EIP2 = 0x02;//提高UART1中斷優先權
+  84   1      } 
+  85          void Port_IO_Init()
+  86          {
+  87   1          P0MDOUT   = 0x8C;
+  88   1          P1MDOUT   = 0x3F;
+  89   1          XBR0      = 0x01;
+  90   1          XBR1      = 0x40;
+  91   1          XBR2      = 0x01;
+  92   1              SSR_Motor = 1;
+  93   1      }
+  94          
+  95          void Interrupts_Init()
+  96          {
+  97   1          IE        = 0x82;
+  98   1              ET1 = 1;
+  99   1      }
+ 100          void SYSCLK_Init (void)
+ 101          {
+ 102   1         OSCICN |= 0x03;                     // Configure internal oscillator for
+ 103   1                                             // its maximum frequency
+ 104   1         RSTSRC  = 0x04;                     // Enable missing clock detector
+ 105   1      }
+ 106          void Timer3_Init(){
+ 107   1              TMR3CN = 0x00;
+ 108   1              TMR3L  = 0xFF;
+ 109   1              TMR3H  = 0xFF;
+ 110   1          EIE1  |= 0x80;
+ 111   1      }
+ 112          // Initialization function for device,
+ 113          // Call Init_Device() from your main program
+ 114          void Init_Device(void)
+ 115          {
+ 116   1              PCA0MD &= ~0x40; 
+ 117   1              SYSCLK_Init();
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 3   
+
+ 118   1          Timer_Init();
+ 119   1              Timer3_Init();
+ 120   1          Port_IO_Init();
+ 121   1          Interrupts_Init();
+ 122   1              UART1_Init();
+ 123   1      }
+ 124          //-----------------------------------------------------------------------------
+ 125          void Timer2_Init(){
+ 126   1              TMR2CN = 0x00;
+ 127   1              TMR2L  = 0x00;
+ 128   1              TMR2H  = 0x00;
+ 129   1          ET2 = 1;
+ 130   1      }
+ 131          
+ 132          void Timer2_ISR (void) interrupt INTERRUPT_TIMER2 
+ 133          {
+ 134   1              TF2H=0;
+ 135   1              if (RxTimeOutCount ++ >=3)
+ 136   1              {
+ 137   2                      TR2 =0;
+ 138   2                      TMR2H = 0x00;
+ 139   2                      TMR2L = 0x00;
+ 140   2                      RxTimeOutCount=0;
+ 141   2                      Pointer_Packer = & Packer.Tablet.Command ;
+ 142   2                      IsRxTimeOut =1;
+ 143   2              }
+ 144   1      }
+ 145          unsigned long Square(char n)
+ 146          {
+ 147   1              unsigned char y = 1,x;
+ 148   1              for(x = 0;x < n ;x++)
+ 149   1                      y=y*2;
+ 150   1              return y;
+ 151   1      }
+ 152          
+ 153          void Timer3_ISR (void) interrupt INTERRUPT_TIMER3 
+ 154          {
+ 155   1              double ErrorTimer = 0xF000;
+ 156   1              TMR3CN &= 0x7F;
+ 157   1              while(!CP);
+ 158   1              while(ErrorTimer --)
+ 159   1              {
+ 160   2                      //ErrorTimer -=1;
+ 161   2                      if(D1 == 0 )
+ 162   2                      {
+ 163   3                              CasseteNumTemp += Square(index -1);
+ 164   3                              
+ 165   3                              index--;
+ 166   3                              Tags[index] = 1;
+ 167   3                              while(D1 == 0);
+ 168   3                      }
+ 169   2                      else if(D0 == 0)
+ 170   2                      {
+ 171   3                              
+ 172   3                              index--;
+ 173   3                              Tags[index] = 0;
+ 174   3                              while(D0 == 0);
+ 175   3              
+ 176   3                      }
+ 177   2                      if(index == 0)
+ 178   2                      {       
+ 179   3                              Packer.Tablet.CasseteNum = CasseteNumTemp;
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 4   
+
+ 180   3                              CasseteNumTemp = 0;
+ 181   3                              IsBarcode = 1;
+ 182   3                              index = 25;                     
+ 183   3                              break;
+ 184   3                      }
+ 185   2      
+ 186   2              }
+ 187   1      }
+ 188          xdata ECasseteNum Tablet;
+ 189          void RunCommand()
+ 190          {
+ 191   1      if(Packer.RecevieData[1] == DisA && Packer.RecevieData[2] == DisB && Packer.RecevieData[3] == DisC)
+ 192   1      {
+ 193   2              Packer.Tablet.Command = Packer.RecevieData[0];
+ 194   2              switch(Packer.Tablet.Command)
+ 195   2              {
+ 196   3                      case TabletCommand_PackStart:
+ 197   3                              CountNumber = ( Packer.RecevieData[4] & 0x0F) * 10 +
+ 198   3                                        ( Packer.RecevieData[5] & 0x0F);
+ 199   3                              Command = TabletCommand_PackStart;
+ 200   3                              Packer.Tablet.State = TabletState_Busy;
+ 201   3                              BCC = UART_Mark ^ Packer.Tablet.State  ;
+ 202   3                              putchar(UART_Mark);
+ 203   3                              putchar(Packer.Tablet.State);
+ 204   3                              putchar(ETX);
+ 205   3                              break;
+ 206   3                      case TabletCommand_RePack:
+ 207   3                              Command = TabletCommand_RePack;
+ 208   3      //                      Packer.Tablet.State = TabletState_Busy;
+ 209   3                              BCC = UART_Mark ^ Packer.Tablet.State  ;
+ 210   3                              putchar(UART_Mark);
+ 211   3                              putchar(Packer.Tablet.State);
+ 212   3                              putchar(ETX);
+ 213   3                              break;
+ 214   3                      case TabletCommand_Return:
+ 215   3                              BCC = UART_Mark ^ Packer.Tablet.State  ;
+ 216   3                              putchar(UART_Mark);
+ 217   3                              putchar(Packer.Tablet.State);
+ 218   3                              putchar(ETX);
+ 219   3                              break;
+ 220   3                      case TabletCommand_LEDON:
+ 221   3                              Command = TabletCommand_LEDON;
+ 222   3                              Shining = 1;
+ 223   3      //                      Packer.Tablet.State = TabletState_Busy;
+ 224   3      //                      BCC = UART_Mark ^ Packer.Tablet.State  ;
+ 225   3                              putchar(UART_Mark);
+ 226   3                              putchar(Packer.Tablet.State);
+ 227   3                              putchar(ETX);
+ 228   3                              break;
+ 229   3                      case TabletCommand_LEDOFF:
+ 230   3                              Command = TabletCommand_LEDOFF;
+ 231   3                              Shining = 0;
+ 232   3      //                      Packer.Tablet.State = TabletState_Busy;
+ 233   3      //                      BCC = UART_Mark ^ Packer.Tablet.State  ;
+ 234   3                              putchar(UART_Mark);
+ 235   3                              putchar(Packer.Tablet.State);
+ 236   3                              putchar(ETX);   
+ 237   3                              break;  
+ 238   3              }
+ 239   2      }
+ 240   1      }
+ 241          //-----------------------------------------------------------------------------
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 5   
+
+ 242          byte BCCTemp,BCC;
+ 243          void UART1_ISR(void)   interrupt 16 
+ 244          {
+ 245   1              EIE2 &= ~0x02;
+ 246   1              if (SCON1 & 0x02)               // TI1
+ 247   1              {
+ 248   2                      SCON1 &= (~0x02);
+ 249   2              }
+ 250   1      
+ 251   1              if (SCON1 & 0x01)               // RI1
+ 252   1              {
+ 253   2                      SCON1 &= (~0x01);
+ 254   2                      *(Pointer_Packer) = SBUF1;
+ 255   2                      BCCTemp ^= SBUF1;
+ 256   2                      if(Pointer_Packer == &Packer.UART_Mark)
+ 257   2                      {
+ 258   3                              if (Packer.UART_Mark == UART_Mark)
+ 259   3                              {
+ 260   4                                      Packer.UART_Mark = UART_NoMark ;
+ 261   4                                      Pointer_Packer = &Packer.RecevieData[CIndex];
+ 262   4                              }
+ 263   3                              else
+ 264   3                              {       
+ 265   4                                      Pointer_Packer = &Packer.UART_Mark;
+ 266   4                              }
+ 267   3                      }
+ 268   2                      else if(Pointer_Packer == &Packer.RecevieData[CIndex])
+ 269   2                      {
+ 270   3                              if(CIndex == 0)
+ 271   3                                      BCCTemp = SBUF1;
+ 272   3                              if(Packer.RecevieData[CIndex] == ETX)
+ 273   3                              {       
+ 274   4                                      Pointer_Packer = &Packer.Station.BCC;
+ 275   4                                      BCC = BCCTemp;                                          
+ 276   4                              }
+ 277   3                              else
+ 278   3                              {
+ 279   4                                      CIndex++;
+ 280   4                                      Pointer_Packer = &Packer.RecevieData[CIndex];
+ 281   4                                      
+ 282   4                              }
+ 283   3                      }
+ 284   2                      else if(Pointer_Packer == &Packer.Station.BCC)  
+ 285   2                      {
+ 286   3                              Pointer_Packer = &Packer.UART_Mark;
+ 287   3                                                      
+ 288   3                              if(BCC ==Packer.Station.BCC )
+ 289   3                                      RunCommand();
+ 290   3                              CIndex = 0;
+ 291   3                      }
+ 292   2                      else 
+ 293   2                      {
+ 294   3                              Pointer_Packer = &Packer.UART_Mark;
+ 295   3                      }               
+ 296   2              }
+ 297   1              EIE2 |= 0x02;
+ 298   1      }
+ 299          
+ 300          //-----------------------------------------------------------------------------
+ 301          
+ 302          void main()
+ 303          {
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 6   
+
+ 304   1              int i=0;
+ 305   1              Init_Device();
+ 306   1              Packer.Tablet.CasseteNum = DisplayNum;
+ 307   1              SSR_Motor = 0;
+ 308   1              Delay(1000);
+ 309   1              TR1 = 1;
+ 310   1              Shining = 0;
+ 311   1              while(1)
+ 312   1              {
+ 313   2      
+ 314   2                      if(Command == TabletCommand_PackStart)
+ 315   2                      {
+ 316   3                              Counter();
+ 317   3                              Command = TabletCommand_Idel ;
+ 318   3                              Packer.Tablet.Command = TabletCommand_PackStop;
+ 319   3                              
+ 320   3                      }
+ 321   2                      else if(Command == TabletCommand_RePack)
+ 322   2                      {
+ 323   3                              CountNumber -= ErrorCount;
+ 324   3                              Counter();
+ 325   3                              Command = TabletCommand_Idel ;
+ 326   3                              Packer.Tablet.Command = TabletCommand_PackStop;
+ 327   3                      }
+ 328   2                      else if(Packer.Tablet.Command == TabletCommand_PackStop)
+ 329   2                      {
+ 330   3                              SSR_Motor = 0;  
+ 331   3                      }
+ 332   2                      else if(Command == TabletCommand_LEDOFF)
+ 333   2                      {
+ 334   3                              Shining = 0;
+ 335   3                              Delay(200);
+ 336   3                              Command = TabletCommand_Idel ;
+ 337   3                              Packer.Tablet.State = TabletState_Sucess;
+ 338   3                      }
+ 339   2                      else if(Command == TabletCommand_LEDON)
+ 340   2                      {
+ 341   3                              Shining = 1;
+ 342   3                              Delay(200);
+ 343   3                              Command = TabletCommand_Idel ;
+ 344   3                              Packer.Tablet.State = TabletState_Sucess;
+ 345   3                      }
+ 346   2              
+ 347   2              }
+ 348   1      }
+ 349          void putchar(unsigned char cData)
+ 350          {
+ 351   1              unsigned int i=10000;
+ 352   1              while( (SCON1 & 0x20) ==0) ;
+ 353   1              SBUF1 = cData;
+ 354   1              if(cData == Packer.ErrorCode){
+ 355   2                      EIE2 |= 0x02;
+ 356   2                      SCON1&=0x3F;
+ 357   2              }
+ 358   1              while(i--);     
+ 359   1      }
+ 360          
+ 361          void DisPlay()
+ 362          {   
+ 363   1              DisA = Packer.Tablet.CasseteNum / 100 + 0x30;
+ 364   1              DisB = (Packer.Tablet.CasseteNum % 100) / 10 + 0x30;
+ 365   1              DisC = Packer.Tablet.CasseteNum %10 + 0x30;
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 7   
+
+ 366   1      
+ 367   1              SD = 1;TD =0;HD = 0;
+ 368   1              NumTemp = DisC - 0x30;
+ 369   1          Send_data(NumberBuf[NumTemp],1);
+ 370   1      
+ 371   1              SD = 0;TD = 1;HD = 0;
+ 372   1              NumTemp = DisB - 0x30;
+ 373   1              Send_data(NumberBuf[NumTemp],1);
+ 374   1      
+ 375   1              SD = 0;TD = 0;HD = 1;
+ 376   1              NumTemp = DisA - 0x30;
+ 377   1              Send_data(NumberBuf[NumTemp],1);
+ 378   1                      
+ 379   1      }
+ 380          /*----------------------------------------------------------------------------*/
+ 381          //等待TIMER0??
+ 382          void Wait_timer0()
+ 383          { 
+ 384   1      TX_Flag=1;
+ 385   1      //while(!TX_Flag);
+ 386   1      TX_Flag=0;
+ 387   1      }
+ 388          /*----------------------------------------------------------------------------*/
+ 389          void T0_int(void) interrupt 1
+ 390          {
+ 391   1      //R0 = 0;
+ 392   1              if (ErrorSenser ++ >=0x1800)
+ 393   1              {
+ 394   2                      F_STOP =1;
+ 395   2              }
+ 396   1      //TR0 = 1;
+ 397   1      } 
+ 398          /*----------------------------------------------------------------------------*/
+ 399          void T1_int(void) interrupt 3
+ 400          {
+ 401   1      TR1 = 0;
+ 402   1      DisPlay();
+ 403   1      if(Shining)
+ 404   1      {
+ 405   2              ss++;
+ 406   2              if(ss >300)
+ 407   2              {
+ 408   3              SD = 1;TD =0;HD = 0;
+ 409   3          Send_data(0xFF,1);
+ 410   3      
+ 411   3              SD = 0;TD = 1;HD = 0;
+ 412   3              Send_data(0xFF,1);
+ 413   3      
+ 414   3              SD = 0;TD = 0;HD = 1;
+ 415   3              Send_data(0xFF,1);
+ 416   3              Delay(2000);
+ 417   3              ss = 0;
+ 418   3              }
+ 419   2      }
+ 420   1      
+ 421   1      if(CP ==1)
+ 422   1      {
+ 423   2              CPCount+=1;
+ 424   2              if(CPCount >= 0x0600)
+ 425   2              {
+ 426   3                      Packer.Tablet.CasseteNum = DisplayNum;
+ 427   3                      IsBarcode = 0;
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 8   
+
+ 428   3              }
+ 429   2      }
+ 430   1      if(CP == 0)
+ 431   1      {
+ 432   2      
+ 433   2              if(!IsBarcode)
+ 434   2                      TMR3CN |= 0x80;
+ 435   2              CPCount =0;
+ 436   2      }
+ 437   1      TR1 = 1;
+ 438   1      } 
+ 439          /*----------------------------------------------------------------------------*/
+ 440          void Send_data(char txdata,char num )
+ 441          {
+ 442   1      char *p,Data,i;
+ 443   1      //TR0=1;
+ 444   1      Data = txdata;
+ 445   1      for(i=0;i<8;i++) //?送8位?据
+ 446   1      {
+ 447   2      tx_pin=Data&0x01;
+ 448   2      Wait_timer0(); 
+ 449   2      Data=Data>>1; 
+ 450   2      } 
+ 451   1      //TR0=0; 
+ 452   1      Delay(15);
+ 453   1      }
+*** WARNING C280 IN LINE 440 OF Tabket.c: 'num': unreferenced local variable
+*** WARNING C280 IN LINE 442 OF Tabket.c: 'p': unreferenced local variable
+ 454          /*----------------------------------------------------------------------------*/
+ 455          void Counter()
+ 456          {
+ 457   1      char Count=0x00;
+ 458   1      Emit = 1;
+ 459   1      F_STOP = 0;
+ 460   1      ErrorSenser = 0x0000;
+ 461   1      SCON1 &= 0xEF;
+ 462   1      TR0 = 1;
+ 463   1      SSR_Motor = 1;
+ 464   1      while(Count<CountNumber)
+ 465   1      {
+ 466   2              while (!Senser & !F_STOP & !F_ERROR ); // 正緣
+ 467   2      
+ 468   2          if (F_STOP || F_ERROR )  break;
+ 469   2      
+ 470   2              while ( Senser & !F_STOP & !F_ERROR ); // 負緣
+ 471   2      
+ 472   2          if (F_STOP || F_ERROR )  break;
+ 473   2      
+ 474   2              Count++;
+ 475   2      
+ 476   2      }
+ 477   1      SSR_Motor = 0;
+ 478   1      TR0=0;
+ 479   1      
+ 480   1      if(F_STOP)
+ 481   1      {
+ 482   2              Packer.Tablet.State = TabletState_Fail;
+ 483   2              ErrorCount = Count;     
+ 484   2      }
+ 485   1      else
+ 486   1      {
+ 487   2              Packer.Tablet.State = TabletState_Sucess;
+C51 COMPILER V9.51   TABKET                                                                09/08/2018 10:35:20 PAGE 9   
+
+ 488   2              ErrorCount = 0; 
+ 489   2      }
+ 490   1      Pointer_Packer = &Packer.UART_Mark;
+ 491   1      SCON1 |= 0x10;
+ 492   1      
+ 493   1      }
+ 494          
+ 495          void Delay(float time)
+ 496          {
+ 497   1      
+ 498   1              while(time --);
+ 499   1      
+ 500   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1465    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =    134    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     74      14
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      5    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  2 WARNING(S),  0 ERROR(S)
